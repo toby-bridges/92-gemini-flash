@@ -55,7 +55,7 @@ class TestBuildPrompt(unittest.TestCase):
 
 class TestResolveModel(unittest.TestCase):
     def test_cli_default_gets_thinking_suffix(self):
-        self.assertEqual(gw.resolve_model(None, "cli"), "gemini-3.7-flash-medium")
+        self.assertEqual(gw.resolve_model(None, "cli"), "gemini-3.8-flash-medium")
 
     def test_api_default_plain(self):
         self.assertEqual(gw.resolve_model(None, "api"), "gemini-3.7-flash")

@@ -11,14 +11,14 @@
 | | 会员通道（默认） | API 通道 |
 |---|---|---|
 | 走什么 | Antigravity CLI（`agy`，gemini CLI 的官方接班人）OAuth 登录 | `GEMINI_API_KEY` 直连 Gemini API |
-| 实际模型 | `gemini-3.7-flash-medium`（可 `--model` 换 high/low 档） | `gemini-3.7-flash` |
+| 实际模型 | `gemini-3.8-flash-medium`（可 `--model` 换 high/low 档） | `gemini-3.7-flash` |
 | 费用 | 0（计入 Google AI Pro/Ultra 会员额度） | 免费限速档；付费 $0.75/1M 输入、$3.75/1M 输出（2026 介绍价） |
 | 前提 | 账号关联地区支持 Antigravity（见 FAQ）；agy 的 headless 脚本化是官方文档特性 | 一个免费申请的 key |
 
 脚本每次运行都在 stderr 如实打印实际执笔模型，绝不静默替换：
 
 ```
-[gw] backend=cli actual_model=gemini-3.7-flash-medium chars=69
+[gw] backend=cli actual_model=gemini-3.8-flash-medium chars=19
 ```
 
 ## 安装（macOS）

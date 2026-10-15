@@ -10,8 +10,8 @@ import shutil
 from pathlib import Path
 
 DEFAULT_MODEL = "gemini-3.7-flash"
-# agy 的模型 slug 带思考档后缀（实测 agy models：gemini-3.7-flash-high|medium|low）
-CLI_DEFAULT_MODEL = "gemini-3.7-flash-medium"
+# agy 的模型 slug 带思考档后缀（2026-10-15 agy 1.3.5 实测 agy models：gemini-3.8-flash-high|medium|low）
+CLI_DEFAULT_MODEL = "gemini-3.8-flash-medium"
 API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 # agy 登录后的本地痕迹（Task 5 按真实登录结果校准）
 CLI_AUTH_MARKER = Path.home() / ".gemini" / "antigravity-cli"
