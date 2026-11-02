@@ -1,24 +1,26 @@
 # 92-gemini-flash / gemini-writer
 
-让 Claude Code 和 Codex 把成篇写作外包给 Gemini：主 agent 当主编，Gemini Flash 当初稿写手。一份 skill，两端通用（macOS）。
+让 Claude Code 和 Codex 把成篇写作外包给 Gemini：主 agent 当主编，Gemini 当初稿写手（默认 3.8 Flash，可选 4 Argon）。一份 skill，两端通用（macOS）。
 
 ## 为什么
 
 写作是高输出 token 的活。Claude/Codex 的额度贵在推理，把初稿交给便宜快速的 Gemini Flash，主 agent 只做审校——省额度、提速度。
 
-## 双后端
+## 通道与写手
 
-| | 会员通道（默认） | API 通道 |
+只走 Antigravity CLI（`agy`，gemini CLI 的官方接班人）的 OAuth 登录，计入 Google AI Pro/Ultra 会员额度。不支持 API key 直连，环境里设了 `GEMINI_API_KEY` 也不会传给 agy。
+
+| 写手 | 实际模型 | 怎么选 |
 |---|---|---|
-| 走什么 | Antigravity CLI（`agy`，gemini CLI 的官方接班人）OAuth 登录 | `GEMINI_API_KEY` 直连 Gemini API |
-| 实际模型 | `gemini-3.8-flash-medium`（可 `--model` 换 high/low 档） | `gemini-3.7-flash` |
-| 费用 | 0（计入 Google AI Pro/Ultra 会员额度） | 免费限速档；付费 $0.75/1M 输入、$3.75/1M 输出（2026 介绍价） |
-| 前提 | 账号关联地区支持 Antigravity（见 FAQ）；agy 的 headless 脚本化是官方文档特性 | 一个免费申请的 key |
+| 3.8 Flash（默认） | `gemini-3.8-flash-high` | 不用加参数 |
+| 4 Argon | `gemini-4-argon-high` | `--model argon` |
+
+前提：账号关联地区支持 Antigravity（见 FAQ）；agy 的 headless 脚本化是官方文档特性；Argon 需要 `agy models` 能列出。
 
 脚本每次运行都在 stderr 如实打印实际执笔模型，绝不静默替换：
 
 ```
-[gw] backend=cli actual_model=gemini-3.8-flash-medium chars=19
+[gw] backend=cli actual_model=gemini-3.8-flash-high chars=19
 ```
 
 ## 安装（macOS）
@@ -28,8 +30,7 @@ git clone https://github.com/toby-bridges/92-gemini-flash.git
 cd 92-gemini-flash && ./install.sh
 ```
 
-会员通道：`brew install --cask antigravity-cli`，终端跑 `agy` 完成一次 Google 登录。
-API 通道（可选）：到 https://aistudio.google.com/apikey 申请后 `export GEMINI_API_KEY=你的key`。
+再装 agy：`brew install --cask antigravity-cli`，终端跑 `agy` 完成一次 Google 登录。
 
 Codex 侧备选安装：`$skill-installer toby-bridges/92-gemini-flash/skills/gemini-writer`
 
@@ -43,7 +44,13 @@ Codex 侧备选安装：`$skill-installer toby-bridges/92-gemini-flash/skills/ge
 python3 ~/.claude/skills/gemini-writer/scripts/gw.py "写作指令" --context 素材.md --out draft.md
 ```
 
-常用参数：`--context 文件`（素材，可重复）、`--out 文件`（初稿落盘）、`--backend cli|api`、`--model`、`--timeout 秒`、`--dry-run`。
+默认写手是 3.8 Flash，思考强度 high。想用 Gemini 4 Argon，加 `--model argon`。
+
+Argon 思考量大，明显更慢（2026-11-02 实测 3 篇 1500~3000 字长文：225 秒到 300 秒以上；Flash 写 1500 字约 80 秒），脚本默认超时 600 秒，外层命令的超时也要留够。Argon 有单独的周额度，`agy -p /usage` 可查。
+
+在 Codex 里：agy 要写 `~/.gemini` 并联网，`workspace-write` 沙箱会挡住它，调用时用 `sandbox_permissions: "require_escalated"`。
+
+常用参数：`--context 文件`（素材，可重复）、`--out 文件`（初稿落盘）、`--model flash|argon|完整模型名`、`--timeout 秒`、`--dry-run`。
 
 ## ⚠️ 地区与风险披露
 
@@ -56,11 +63,11 @@ python3 ~/.claude/skills/gemini-writer/scripts/gw.py "写作指令" --context �
 **Q：报 `not currently available in your location` 怎么办？**
 见上面的地区披露。改完账号地区后如仍失败：重登 agy 一次（清 `~/.gemini/antigravity-cli/jetski_state.pbtxt` 后运行 `agy`）。
 
-**Q：模型名为什么带 `-medium` 后缀？**
-agy 的模型 slug 带思考强度档（`agy models` 可见 high/medium/low），API 直连则用纯模型名 `gemini-3.7-flash`。脚本已按后端自动选择默认值。
+**Q：Codex 里报 `operation not permitted`？**
+沙箱不让 agy 写日志和联网，不是没装好。按上面的用法提权运行即可。
 
-**Q：API 通道实测过吗？**
-选路与参数逻辑有 22 个离线单测覆盖；真实调用留给你配 key 后自验：上面的手动命令加 `--backend api` 跑一次即可。
+**Q：模型名为什么带 `-high` 后缀？**
+agy 的模型 slug 带思考强度档（`agy models` 可见 high/medium/low）。不带档位时 agy 用 medium，脚本统一拉到 high；想换档时 `--model` 写完整 slug，如 `gemini-3.8-flash-medium`。
 
 **Q：装完 Claude Code 侧不识别？**
 若 `~/.claude/skills` 曾被其他工具改成软链且目标已删（悬空），`install.sh` 会自动重建目标目录，重跑一次即可。

@@ -1,39 +1,13 @@
+import io
+import json
+import subprocess
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "skills" / "gemini-writer" / "scripts"))
 import gw
-
-
-class TestSelectBackend(unittest.TestCase):
-    def test_auto_prefers_cli_when_both_available(self):
-        self.assertEqual(gw.select_backend(None, None, True, True), ("cli", None))
-
-    def test_auto_falls_to_api_when_cli_missing(self):
-        self.assertEqual(gw.select_backend("auto", None, False, True), ("api", None))
-
-    def test_auto_errors_when_nothing_available(self):
-        backend, err = gw.select_backend(None, None, False, False)
-        self.assertIsNone(backend)
-        self.assertIn("brew install --cask antigravity-cli", err)
-        self.assertIn("aistudio.google.com/apikey", err)
-
-    def test_env_var_overrides_auto(self):
-        self.assertEqual(gw.select_backend("auto", "api", True, True), ("api", None))
-
-    def test_explicit_flag_beats_env(self):
-        self.assertEqual(gw.select_backend("cli", "api", True, True), ("cli", None))
-
-    def test_forced_cli_unavailable_errors_with_fix(self):
-        backend, err = gw.select_backend("cli", None, False, True)
-        self.assertIsNone(backend)
-        self.assertIn("brew install --cask antigravity-cli", err)
-
-    def test_forced_api_without_key_errors_with_fix(self):
-        backend, err = gw.select_backend("api", None, True, False)
-        self.assertIsNone(backend)
-        self.assertIn("GEMINI_API_KEY", err)
 
 
 class TestBuildPrompt(unittest.TestCase):
@@ -54,14 +28,67 @@ class TestBuildPrompt(unittest.TestCase):
 
 
 class TestResolveModel(unittest.TestCase):
-    def test_cli_default_gets_thinking_suffix(self):
-        self.assertEqual(gw.resolve_model(None, "cli"), "gemini-3.8-flash-medium")
+    def test_default_is_flash_at_high(self):
+        self.assertEqual(gw.resolve_model(None), "gemini-3.8-flash-high")
 
-    def test_api_default_plain(self):
-        self.assertEqual(gw.resolve_model(None, "api"), "gemini-3.7-flash")
+    def test_argon_alias(self):
+        self.assertEqual(gw.resolve_model("argon"), "gemini-4-argon-high")
+
+    def test_builtin_base_name_gets_default_thinking(self):
+        # 基础名直传 agy 会落到服务端默认的 medium
+        self.assertEqual(gw.resolve_model("gemini-4-argon"), "gemini-4-argon-high")
 
     def test_explicit_model_passthrough(self):
-        self.assertEqual(gw.resolve_model("gemini-3.7-flash-high", "cli"), "gemini-3.7-flash-high")
+        self.assertEqual(gw.resolve_model("gemini-4-argon-medium"), "gemini-4-argon-medium")
+
+
+class TestRunCli(unittest.TestCase):
+    OK = json.dumps({"status": "SUCCESS", "response": "正文"})
+
+    def test_pins_model_by_slug(self):
+        done = subprocess.CompletedProcess([], 0, stdout=self.OK, stderr="")
+        with mock.patch.object(gw.subprocess, "run", return_value=done) as run:
+            self.assertEqual(gw.run_cli("p", "gemini-4-argon-high", 5), ("正文", "gemini-4-argon-high"))
+        cmd = run.call_args[0][0]
+        self.assertEqual(cmd[cmd.index("--model") + 1], "gemini-4-argon-high")
+        self.assertNotIn("--effort", cmd)
+
+    def test_fallback_keeps_default_thinking(self):
+        failed = subprocess.CompletedProcess([], 1, stdout="", stderr="unknown model")
+        done = subprocess.CompletedProcess([], 0, stdout=self.OK, stderr="")
+        with mock.patch.object(gw.subprocess, "run", side_effect=[failed, done]) as run:
+            self.assertEqual(gw.run_cli("p", "gone-model", 5), ("正文", "agy-default(unknown)"))
+        cmd = run.call_args[0][0]
+        self.assertNotIn("--model", cmd)
+        self.assertEqual(cmd[cmd.index("--effort") + 1], "high")
+
+    def test_never_hands_api_key_to_agy(self):
+        # agy 支持 GEMINI_API_KEY 会话，这里保证只走会员 OAuth
+        done = subprocess.CompletedProcess([], 0, stdout=self.OK, stderr="")
+        with mock.patch.dict(gw.os.environ, {"GEMINI_API_KEY": "fake-key", "HOME": "/fake-home"}), \
+                mock.patch.object(gw.subprocess, "run", return_value=done) as run:
+            gw.run_cli("p", "gemini-3.8-flash-high", 5)
+        env = run.call_args.kwargs["env"]
+        self.assertNotIn("GEMINI_API_KEY", env)
+        self.assertEqual(env["HOME"], "/fake-home")
+
+    def test_sandbox_failure_points_at_escalation(self):
+        # Codex 沙箱不让 agy 写日志，修复建议不能是重装
+        failed = subprocess.CompletedProcess([], 1, stdout="", stderr="open cli.log: operation not permitted")
+        with mock.patch.object(gw.subprocess, "run", return_value=failed), \
+                mock.patch("sys.stderr", new=io.StringIO()) as err, \
+                self.assertRaises(SystemExit):
+            gw.run_cli("p", "gemini-3.8-flash-high", 5)
+        self.assertIn("require_escalated", err.getvalue())
+        self.assertNotIn("brew install", err.getvalue())
+
+    def test_other_failure_keeps_install_fix(self):
+        failed = subprocess.CompletedProcess([], 1, stdout="", stderr="not logged in")
+        with mock.patch.object(gw.subprocess, "run", return_value=failed), \
+                mock.patch("sys.stderr", new=io.StringIO()) as err, \
+                self.assertRaises(SystemExit):
+            gw.run_cli("p", "gemini-3.8-flash-high", 5)
+        self.assertIn("brew install", err.getvalue())
 
 
 class TestClampTimeout(unittest.TestCase):

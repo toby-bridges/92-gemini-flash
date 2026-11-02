@@ -37,6 +37,5 @@ done
 
 echo ""
 echo "== 后续步骤 =="
-echo "会员通道（默认，走 Google AI Pro 额度）：brew install --cask antigravity-cli && agy   # 完成一次 Google 登录；需账号关联地区支持 Antigravity"
-echo "API 通道（gemini-3.7-flash 直连）：https://aistudio.google.com/apikey 申请后 export GEMINI_API_KEY=你的key"
+echo "安装 agy（走 Google AI Pro 额度）：brew install --cask antigravity-cli && agy   # 完成一次 Google 登录；需账号关联地区支持 Antigravity"
 echo "验证：python3 \"$SRC/scripts/gw.py\" \"测试\" --dry-run"
